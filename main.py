@@ -6,9 +6,10 @@ from ulauncher.api.shared.action.RenderResultListAction import RenderResultListA
 from ulauncher.api.shared.action.RunScriptAction import RunScriptAction
 from ulauncher.api.shared.action.HideWindowAction import HideWindowAction
 import subprocess
+import os
 
 
-class CodeGitExtension(Extension):
+class CodeWorkspaceExtension(Extension):
     def __init__(self):
         super().__init__()
         self.subscribe(KeywordQueryEvent, KeywordQueryEventListener())
@@ -19,9 +20,9 @@ class KeywordQueryEventListener(EventListener):
         code_command = extension.preferences["code_command"]
         root_folder = extension.preferences["root_folder"]
 
-        search_command = "find " + root_folder + " -type d -name .git -prune -exec dirname \{} \; | rev | cut -d'/' -f1 | rev"
+        search_command = "find " + root_folder + " -type f -name *.code-workspace "
         
-        projects = []
+        workspaces = []
         items = []
 
         if event.get_argument():
@@ -35,33 +36,35 @@ class KeywordQueryEventListener(EventListener):
                 ], capture_output=True, text=True, check=True)
             output = result.stdout.strip()
             if output:
-                projects = output.split('\n')
-            if len(projects) > 10:
-                projects = projects[:10]
+                workspaces = output.split('\n')
+            if len(workspaces) > 10:
+                workspaces = workspaces[:10]
         except subprocess.CalledProcessError as e:
             output = f"Error: {e.stderr.strip()}"
         except FileNotFoundError:
             output = "Error: Script not found"
 
-        # Populate items with project names
-        for project in projects:
-            if project:  # Ensure the project name is not empty
+        # Populate items with workspace names
+        for workspace in workspaces:
+            if workspace:  # Ensure the workspace name is not empty
+                filename = os.path.basename(workspace)
+                project_folder = os.path.basename(os.path.dirname(workspace))
                 items.append(ExtensionResultItem(
                     icon='images/icon.png',
-                    name=project,
-                    description=f'Project: {project}',
-                    on_enter=RunScriptAction(f"{code_command} {root_folder}/{project}")
+                    name=filename,
+                    description=f'{project_folder}/{filename}',
+                    on_enter=RunScriptAction(f"{code_command} {workspace}")
                 ))
                 
-        if not projects:
+        if not workspaces:
             items.append(ExtensionResultItem(
                 icon='images/icon.png',
-                name='No projects found',
-                description='No projects found in the root folder',
+                name='No workspaces found',
+                description='No workspaces found in the root folder',
                 on_enter=HideWindowAction()
             ))
 
         return RenderResultListAction(items)
 
 if __name__ == '__main__':
-    CodeGitExtension().run()
+    CodeWorkspaceExtension().run()
